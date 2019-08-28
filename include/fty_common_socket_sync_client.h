@@ -47,7 +47,7 @@ namespace fty
         std::string m_path;        
     };
     
-} //namespace mlm
+} //namespace fty
 
 //  @interface
 //  Self test of this class

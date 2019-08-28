@@ -70,9 +70,9 @@ namespace fty
 
         unlink(m_path.c_str());
 
-        /* Create local socket. */
+        // Create unix socket.
 
-        m_serverSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+        m_serverSocket = socket(AF_UNIX, SOCK_STREAM, PF_UNSPEC);
         
         if (m_serverSocket == -1)
         {
@@ -82,7 +82,7 @@ namespace fty
 
         memset(&name, 0, sizeof(struct sockaddr_un));
 
-        /* Bind socket to socket name. */
+        // Bind socket to socket name.
 
         name.sun_family = AF_UNIX;
         strncpy(name.sun_path, m_path.c_str(), sizeof(name.sun_path) - 1);
@@ -95,11 +95,7 @@ namespace fty
             throw std::runtime_error("Impossible to bind the Unix socket");
         }
 
-        /*
-        * Prepare for accepting connections. The backlog size is set
-        * to 20. So while one request is being processed other requests
-        * can be waiting.
-        */
+        //Prepare for accepting connections
 
         ret = listen(m_serverSocket, m_maxClient);
         if (ret == -1)
@@ -149,6 +145,11 @@ namespace fty
                 continue;
               }
             }
+            
+            if(m_stopRequested)
+            {
+               break;
+            }
 
             // Run through the existing connections looking for data to be read
             for (int socket = 0; socket <= lastSocket; socket++)
@@ -184,8 +185,6 @@ namespace fty
                             lastSocket = newSocket;
                         }
 
-                        //PRINT_DEBUG("Server accept connection on socket "+ std::to_string(socket) + " from " +std::string(inet_ntoa(clientaddr.sin_addr))+":"+std::to_string(clientaddr.sin_port));
-
                     }
                     else
                     {
@@ -196,14 +195,7 @@ namespace fty
                 {
                     try
                     {
-                        //check if we need to leave
-                        if(m_stopRequested)
-                        {
-                            break;
-                        }
-                        
-                        //PRINT_DEBUG("We receive a request from a socket " + std::to_string(socket));
-                        // We received request in the 
+                        // We received request
 
                         //get credential info
                         struct ucred cred;
@@ -219,16 +211,10 @@ namespace fty
                         
                         std::string sender(pws->pw_name);
 
-                        printf("=== New connection from PID %i, with UID %i and GID %i\n",cred.pid, cred.uid, cred.gid);
+                        printf("=== New connection from %s with PID %i, with UID %i and GID %i\n",pws->pw_name,cred.pid, cred.uid, cred.gid);
                         
                         //Get frames
-                        std::vector<std::string> payload = recvFrames(socket);
-                                                
-                        //check if we need to leave
-                        if(m_stopRequested)
-                        {
-                            break;
-                        }
+                        std::vector<std::string> payload = recvFrames(socket);                        
                         
                         //Execute the request
                         Payload results = m_server.handleRequest(sender, payload);
@@ -264,7 +250,6 @@ namespace fty
                             lastSocket--;
                         }
                     }
-                    
                     
                 }
             }
@@ -304,6 +289,7 @@ namespace fty
         
         if(m_serverSocket != -1)
         {
+            //closing the socket for the select to return
             close(m_serverSocket);
             m_serverSocket = -1;
         }

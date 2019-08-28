@@ -44,14 +44,12 @@ namespace fty
         //get the number of frames
         uint32_t numberOfFrame = 0;
 
-        std::cerr << "reading data..." << std::endl;
         
         if(read(socket, &numberOfFrame, sizeof(uint32_t)) != sizeof(uint32_t))
         {
             throw std::runtime_error("Error while reading number of frame");
         }
         
-        std::cerr << "reading "<< numberOfFrame <<" frames ..." << std::endl;
 
         //Get frames
         Payload frames;
@@ -61,14 +59,12 @@ namespace fty
             //get the size of the frame
             uint32_t frameSize = 0;
             
-            std::cerr << "reading size of frame "<< index <<" ..." << std::endl;
             
             if(read(socket, &frameSize, sizeof(uint32_t)) != sizeof(uint32_t))
             {
                 throw std::runtime_error("Error while reading size of frame");
             }
             
-            std::cerr << "reading payload of "<< frameSize <<" bytes of frame "<< index <<"..." << std::endl;
 
             if(frameSize == 0)
             {
@@ -86,8 +82,6 @@ namespace fty
             }
             
             std::string str(&buffer[0]);
-
-            std::cerr << "Payload of frame "<<index <<": "<< str << std::endl;
             
             frames.push_back(str);
         }
