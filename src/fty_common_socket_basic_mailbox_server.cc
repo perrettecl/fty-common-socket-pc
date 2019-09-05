@@ -211,7 +211,7 @@ namespace fty
                         
                         std::string sender(pws->pw_name);
 
-                        printf("=== New connection from %s with PID %i, with UID %i and GID %i\n",pws->pw_name,cred.pid, cred.uid, cred.gid);
+                        //printf("=== New connection from %s with PID %i, with UID %i and GID %i\n",pws->pw_name,cred.pid, cred.uid, cred.gid);
                         
                         //Get frames
                         std::vector<std::string> payload = recvFrames(socket);                        
@@ -222,7 +222,7 @@ namespace fty
                         //send the result if it's not empty
                         if(!results.empty())
                         {
-                            sendFrames(socket, payload);
+                            sendFrames(socket, results);
                         }
                         
                         //check if we need to leave
