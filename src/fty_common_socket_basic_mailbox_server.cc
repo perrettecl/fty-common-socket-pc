@@ -298,7 +298,8 @@ namespace fty
 
         }
         
-         m_running = true;
+         m_running = false;
+         m_stopRequested = false;
     }
     
     void SocketBasicServer::requestStop()
