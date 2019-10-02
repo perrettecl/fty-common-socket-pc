@@ -49,9 +49,9 @@ namespace fty
         
         ~SocketBasicServer();
         
-        void init();
         void run();
         void requestStop();
+        bool isRunning();
         
     private:
         //attributs

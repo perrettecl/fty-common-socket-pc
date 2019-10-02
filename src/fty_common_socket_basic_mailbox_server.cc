@@ -33,10 +33,12 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <pwd.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <stdexcept>
+#include <iostream>
 
 #include "fty_common_socket_helpers.h"
 
@@ -48,17 +50,10 @@ namespace fty
                                             const std::string & path,
                                             size_t maxClient)
      : m_server(server), m_path(path), m_maxClient(maxClient)
-    {
+    {        
         m_serverSocket = -1;
-        init();
-    }
-    
-    void SocketBasicServer::init()
-    {
-        if(m_serverSocket != -1)
-        {
-            throw std::runtime_error("already initialize");
-        }
+        m_pipe[0] = -1;
+        m_pipe[1] = -1;
         
         struct sockaddr_un name;
         int ret;
@@ -76,7 +71,7 @@ namespace fty
         
         if (m_serverSocket == -1)
         {
-            throw std::runtime_error("Impossible to create unix socket");
+            throw std::runtime_error("Impossible to create Unix socket "+m_path+": " + std::string(strerror(errno)));
         }
 
 
@@ -92,25 +87,39 @@ namespace fty
         
         if (ret == -1)
         {
-            throw std::runtime_error("Impossible to bind the Unix socket");
+            throw std::runtime_error("Impossible to bind the Unix socket "+m_path+": " + std::string(strerror(errno)));
         }
+        
+        //change the right of the socket
+        ret = chmod(m_path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO );
+        
+        if(ret == -1)
+        {
+            throw std::runtime_error("Impossible to change the rights of the Unix socket "+m_path+": " + std::string(strerror(errno)));
+        }
+        
 
         //Prepare for accepting connections
 
         ret = listen(m_serverSocket, m_maxClient);
         if (ret == -1)
         {
-            throw std::runtime_error("Impossible to listen on the Unix socket");
+            throw std::runtime_error("Impossible to listen on the Unix socket "+m_path+": " + std::string(strerror(errno)));
         }
+        
+        if (pipe(m_pipe) < 0)
+        {
+            throw std::runtime_error("Impossible to create the pipe: " + std::string(strerror(errno)));
+        }
+         
     }
     
     SocketBasicServer::~SocketBasicServer()
     {
-        if(m_serverSocket != -1)
-        {
-            close(m_serverSocket);
-            m_serverSocket = -1;
-        }
+
+        close(m_serverSocket);
+        close(m_pipe[0]);
+        close(m_pipe[1]);
 
         /* Unlink the socket. */
         unlink(m_path.c_str());
@@ -118,16 +127,30 @@ namespace fty
     
     void SocketBasicServer::run()
     {
+        if(m_running)
+        {
+            throw std::runtime_error("Already running");
+        }
+        
+        m_running = true;
+        
         // Clear the reference set of socket
         fd_set socketsSet;
         FD_ZERO(&socketsSet);
 
         // Add the server socket
         FD_SET(m_serverSocket, &socketsSet);
-        
         int lastSocket = m_serverSocket;
+        
+        //Add the pipe
+        FD_SET(m_pipe[0], &socketsSet);
+        if (m_pipe[0] > lastSocket)
+        {
+            // Keep track of the maximum
+            lastSocket = m_pipe[0];
+        }
 
-        //infinit loop for handling connection
+        //infini loop for handling connection
         for (;;)
         {
             fd_set tmpSockets = socketsSet;
@@ -190,7 +213,15 @@ namespace fty
                     {
                         //PRINT_DEBUG("Server accept() error");
                     }
-                } 
+                }
+                else if(socket == m_pipe[0])
+                {   char c;
+                
+                    if (read(m_pipe[0], &c, 1) != 1)
+                    {
+                        //error
+                    }
+                }
                 else
                 {
                     try
@@ -203,7 +234,7 @@ namespace fty
 
                         if (getsockopt(socket, SOL_SOCKET, SO_PEERCRED, &cred, (socklen_t*)(&lenCredStruct)) == -1)
                         {
-                            throw std::runtime_error("Impossible to get sender");                            
+                            throw std::runtime_error("Impossible to get sender: " + std::string(strerror(errno)));                            
                         }
                         
                         struct passwd *pws;
@@ -266,8 +297,8 @@ namespace fty
             continue;
           }
 
-          //Don't close the server socket
-          if(socket != m_serverSocket)
+          //Don't close the server socket or pipe
+          if((socket != m_serverSocket) && (socket != m_pipe[0]))
           {
             close(socket);
 
@@ -281,19 +312,28 @@ namespace fty
           }
 
         }
+        
+         m_running = false;
+         m_stopRequested = false;
     }
     
     void SocketBasicServer::requestStop()
     {
-        m_stopRequested = true;
-        
-        if(m_serverSocket != -1)
+        if(m_running)
         {
-            //closing the socket for the select to return
-            close(m_serverSocket);
-            m_serverSocket = -1;
+            m_stopRequested = true;
+
+            if(write(m_pipe[1], "s", 1) != -1 )
+            {
+               //error 
+            }
         }
-        
+             
+    }
+    
+    bool SocketBasicServer::isRunning()
+    {
+        return m_running;
     }
     
 } //namespace fty

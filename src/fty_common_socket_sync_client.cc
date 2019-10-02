@@ -61,7 +61,7 @@ namespace fty
             data_socket = socket(AF_UNIX, SOCK_STREAM, 0);
             if (data_socket == -1)
             {
-                throw std::runtime_error("Impossible to connect to server");
+                throw std::runtime_error("Impossible to create the socket "+m_path+": " + std::string(strerror(errno)));
             }
 
             memset(&addr, 0, sizeof(struct sockaddr_un));
@@ -74,7 +74,7 @@ namespace fty
             ret = connect (data_socket, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un));
             if (ret == -1)
             {
-                throw std::runtime_error("Impossible to connect to server");
+                throw std::runtime_error("Impossible to connect to server using the socket "+m_path+": " + std::string(strerror(errno)));
             }
 
             sendFrames(data_socket, payload);
